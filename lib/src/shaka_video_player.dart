@@ -2,14 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:html' as html;
+import 'dart:js';
 import 'package:better_player_web/src/filters.dart';
 import 'package:better_player_web/src/shims/dart_ui_real.dart';
+import 'package:flutter_shaka/net/net_js.dart';
 import 'package:universal_io/io.dart';
 import 'dart:js_interop';
 import 'dart:js_util';
-
+import 'dart:convert';
 import 'package:better_player/better_player.dart';
-// import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http;
 import 'shims/dart_ui.dart' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -177,34 +179,71 @@ class ShakaVideoPlayer extends VideoElementPlayer {
       _player = shaka.Player(videoElement);
 
       setupListeners();
+
+      var f = () {
+        try {
+          if(_drmConfiguration?.headers != null) {
+            return json.encode(_drmConfiguration?.headers).toString();
+          }
+        } catch(e) {
+          print("$e");
+        }
+        return null;
+      };
+      context['__getDrmHeaders']= allowInterop(f);
+      _player.getNetworkingEngine().clearAllRequestFilters();
+      _player.getNetworkingEngine().clearAllResponseFilters();
+      _player.getNetworkingEngine().registerRequestFilter(requestFilter);
+      _player.getNetworkingEngine().registerResponseFilter(responseFilter);
       try {
         print('Check if video is DRM = $_hasDrm');
-        print(_drmConfiguration?.certificateUrl);
-        print(_drmConfiguration?.licenseUrl);
         if (_hasDrm) {
           if ((_drmConfiguration?.licenseUrl?.isNotEmpty ?? false) &&
               !isSafari) {
             _player.configure(
               {
+                // "drm": {
+                //   "servers": {_drmServer: _drmConfiguration?.licenseUrl!}
+                // }
                 "drm": {
-                  "servers": {_drmServer: _drmConfiguration?.licenseUrl!}
-                }
+                  "servers": {
+                    'com.widevine.alpha': _drmConfiguration?.licenseUrl!,
+                  },
+                  "advanced": {
+                    'com.widevine.alpha': {
+                      'persistentStateRequired': true
+                    }
+                  }
+                },
+                // "streaming": {
+                //   "autoLowLatencyMode": true,
+                // },
               },
             );
+            // _player.configure(
+            //   {
+            //     "drm": {
+            //       "servers": {_drmServer: _drmConfiguration?.licenseUrl!}
+            //     }
+            //   },
+            // );
           }
           if ((_drmConfiguration?.licenseUrl?.isNotEmpty ?? false) &&
               isSafari) {
+            var ret = await getFairPlayCert(_drmConfiguration!.certificateUrl!);
             _player.configure({
               "drm": {
                 "servers": {'com.apple.fps': _drmConfiguration?.licenseUrl},
                 "advanced": {
                   'com.apple.fps': {
-                    "serverCertificateUri": _drmConfiguration?.certificateUrl
+                    "serverCertificate": ret
                   }
                 },
-              }
+              },
+              // "streaming": {
+              //   "autoLowLatencyMode": true,
+              // },
             });
-            filters(_player);
           }
         }
 
@@ -222,19 +261,13 @@ class ShakaVideoPlayer extends VideoElementPlayer {
     }
   }
 
-  filters(shaka.Player player) {
-    if (isSafari) {
-      player.getNetworkingEngine().registerRequestFilter(requestFilter);
-      // player.getNetworkingEngine().registerResponseFilter(responseFilter);
-      //     .registerRequestFilter((int type, shaka.Request request) {
-      //   if (type != shaka.RequestType.LICENSE) {
-      //     return;
-      //   }
-      //   final base64Payload =
-      //       shaka.Uint8ArrayUtils.toStandardBase64(request.body);
-      //   request.headers['Content-Type'] = 'application/json';
-      //   request.body = shaka.StringUtils.toUTF8('{"spc": "$base64Payload"}');
-      // });
+  Future<Uint8List> getFairPlayCert(String fairplayCertUri) async{
+    var client = http.Client();
+    try {
+      var response = await client.get(Uri.parse(fairplayCertUri));
+      return base64Decode(response.body);
+    } finally {
+      client.close();
     }
   }
 
@@ -315,5 +348,20 @@ class ShakaVideoPlayer extends VideoElementPlayer {
   Future<void> setAudioTrack(String? name, int? index) {
     // _player.selectAudioLanguage(name!);
     return Future.value();
+  }
+
+  @override
+  Future<void> requestFullscreen() async {
+    await videoElement.requestFullscreen();
+    // _player.requestFullscreen();
+  }
+
+  @override
+  Future<void> exitFullscreen() async {
+    try{
+      videoElement.exitFullscreen();
+    }catch(e) {
+      print(e);
+    }
   }
 }

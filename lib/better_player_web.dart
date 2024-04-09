@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:html' as html;
 
 import 'package:better_player/better_player.dart';
 import 'package:better_player_web/src/shaka_video_player.dart';
 import 'package:better_player_web/src/video_player.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:flutter/widgets.dart';
 import 'package:better_player/src/video_player/video_player_platform_interface.dart';
@@ -124,7 +126,8 @@ class BetterPlayerPlugin extends VideoPlayerPlatform {
   }
 
   Future<void> setAudioTrack(int? textureId, String? name, int? index) {
-    throw UnimplementedError();
+    // throw UnimplementedError();
+    return Future<void>.value();
   }
 
   @override
@@ -135,6 +138,17 @@ class BetterPlayerPlugin extends VideoPlayerPlatform {
   @override
   Stream<VideoEvent> videoEventsFor(int? textureId) {
     return _player(textureId!).events;
+  }
+
+  @override
+  Future<void> toggleFullscreen(int? textureId, bool fullscreenMode) async{
+    var video = _player(textureId!);
+    if(fullscreenMode) {
+      video.requestFullscreen();
+    } else {
+      video.exitFullscreen();
+    }
+    return;
   }
 
   // Retrieves a [VideoPlayer] by its internal `id`.

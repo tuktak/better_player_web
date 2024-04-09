@@ -119,6 +119,16 @@ abstract class VideoElementPlayer implements VideoPlayer {
       eventController
           .add(VideoEvent(eventType: VideoEventType.completed, key: _key));
     });
+    videoElement.addEventListener('webkitfullscreenchange', onFullscreenChanged);
+    videoElement.addEventListener('fullscreenchange', onFullscreenChanged);
+  }
+
+  void onFullscreenChanged(html.Event event) {
+    if(html.window.document.fullscreenElement != null) {
+      eventController.add(VideoEvent(eventType: VideoEventType.enterFullscreen, key: _key));
+    } else {
+      eventController.add(VideoEvent(eventType: VideoEventType.exitFullscreen, key: _key));
+    }
   }
 
   /// Attempts to play the video.

@@ -38,4 +38,6 @@ abstract class VideoPlayer {
   Future<void> setAudioTrack(String? name, int? index);
 
   Duration getPosition();
+  void requestFullscreen();
+  void exitFullscreen();
 }
