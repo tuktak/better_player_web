@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:html' as html;
+import 'dart:js' as js;
 
 import 'package:better_player_web/better_player_web.dart';
 import 'package:better_player_web/src/video_player.dart';
@@ -78,8 +79,13 @@ abstract class VideoElementPlayer implements VideoPlayer {
         .registerViewFactory(_videoElement.id, (int viewId) => _videoElement);
   }
 
+  bool isAlreadySetup= false;
   @protected
   void setupListeners() {
+    if(isAlreadySetup) {
+      return;
+    }
+    isAlreadySetup=true;
     videoElement.onCanPlay.listen((dynamic _) => markAsInitializedIfNeeded());
     // it's not possible to programmatically use the canplay event reliably in Safari in iOS
     if (isIPhone) {
@@ -120,11 +126,42 @@ abstract class VideoElementPlayer implements VideoPlayer {
           .add(VideoEvent(eventType: VideoEventType.completed, key: _key));
     });
     videoElement.addEventListener('webkitfullscreenchange', onFullscreenChanged);
+    videoElement.addEventListener('webkitendfullscreen', onFullscreenChanged);
+    videoElement.addEventListener('webkitbeginfullscreen', onFullscreenChanged);
     videoElement.addEventListener('fullscreenchange', onFullscreenChanged);
+    videoElement.addEventListener('play', (event) {
+      if(!videoPlayed) {
+        videoPlayed = true;
+        eventController.add(VideoEvent(eventType: VideoEventType.play, key: _key));
+      }
+      // if(html.window.document.fullscreenElement != null) {
+      // }
+    });
+    videoElement.addEventListener('pause', (event) {
+      if(videoPlayed) {
+        videoPlayed =false;
+        // if(html.window.document.fullscreenElement != null) {
+          eventController.add(VideoEvent(eventType: VideoEventType.pause, key: _key));
+        // }
+      }
+    });
+    videoElement.addEventListener('ended',(event) {
+      eventController.add(VideoEvent(eventType: VideoEventType.completed, key: _key));
+      if(videoPlayed) {
+        videoElement.pause();
+      }
+    });
+    videoElement.addEventListener('isPlaying', (event){
+      if(!videoPlayed) {
+        videoPlayed= true;
+        eventController.add(VideoEvent(eventType: VideoEventType.play, key: _key));
+      }
+    });
   }
-
+  bool videoPlayed = false;
   void onFullscreenChanged(html.Event event) {
-    if(html.window.document.fullscreenElement != null) {
+    bool ret = js.context.callMethod('checkFullscreen', [videoElement]);
+    if(ret) {
       eventController.add(VideoEvent(eventType: VideoEventType.enterFullscreen, key: _key));
     } else {
       eventController.add(VideoEvent(eventType: VideoEventType.exitFullscreen, key: _key));
@@ -140,6 +177,9 @@ abstract class VideoElementPlayer implements VideoPlayer {
   /// limitation should disappear.
   @override
   Future<void> play() {
+    if(videoElement.duration.round() == videoElement.currentTime.round()) {
+      videoElement.currentTime = 0;
+    }
     return videoElement.play();
     // .catchError((Object e) {
     //   // play() attempts to begin playback of the media. It returns

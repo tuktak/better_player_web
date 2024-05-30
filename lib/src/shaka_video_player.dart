@@ -104,9 +104,6 @@ class ShakaVideoPlayer extends VideoElementPlayer {
       ..style.border = 'none'
       ..style.height = '100%'
       ..style.width = '100%';
-    el.attributes.addAll({
-      "disablepictureinpicture" : 'true',
-    });
     return el;
   }
 
@@ -304,6 +301,7 @@ class ShakaVideoPlayer extends VideoElementPlayer {
     // final type = tracks[0].toString();
     // final track = shaka.Track.fromMap(tracks[0] as Map<String, dynamic>);
     _player.destroy();
+    js.context.callMethod('disposePIP',[]);
     super.dispose();
   }
 
@@ -334,8 +332,10 @@ class ShakaVideoPlayer extends VideoElementPlayer {
 
   @override
   Future<void> setTrackParameters(int? width, int? height, int? bitrate) async {
-    shaka.Track? track = _trackDecision(width, height, bitrate);
-    if (track != null) _player.selectVariantTrack(track, true, 0);
+    try {
+      shaka.Track? track = _trackDecision(width, height, bitrate);
+      if (track != null) _player.selectVariantTrack(track, true, 0);
+    } finally{}
   }
 
   @override

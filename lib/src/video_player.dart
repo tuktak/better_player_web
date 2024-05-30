@@ -40,4 +40,5 @@ abstract class VideoPlayer {
   Duration getPosition();
   void requestFullscreen();
   void exitFullscreen();
+
 }
