@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:html' as html;
 import 'dart:js';
+import 'dart:js' as js;
 import 'package:better_player_web/src/filters.dart';
 import 'package:better_player_web/src/shims/dart_ui_real.dart';
 import 'package:flutter_shaka/net/net_js.dart';
@@ -97,12 +98,16 @@ class ShakaVideoPlayer extends VideoElementPlayer {
 
   @override
   html.VideoElement createElement(int textureId) {
-    return html.VideoElement()
+    html.VideoElement el=  html.VideoElement()
       ..id = 'shakaVideoPlayer-$textureId'
       ..preload = 'auto'
       ..style.border = 'none'
       ..style.height = '100%'
       ..style.width = '100%';
+    el.attributes.addAll({
+      "disablepictureinpicture" : 'true',
+    });
+    return el;
   }
 
   @override
@@ -352,16 +357,21 @@ class ShakaVideoPlayer extends VideoElementPlayer {
 
   @override
   Future<void> requestFullscreen() async {
-    await videoElement.requestFullscreen();
+    try {
+      js.context.callMethod('enterFullscreen', [videoElement]);
+    } catch(e) {
+      html.window.console.log(e);
+    }
     // _player.requestFullscreen();
   }
 
   @override
   Future<void> exitFullscreen() async {
     try{
-      videoElement.exitFullscreen();
+      js.context.callMethod('exitFullscreen', [videoElement]);
     }catch(e) {
       print(e);
     }
   }
 }
+
