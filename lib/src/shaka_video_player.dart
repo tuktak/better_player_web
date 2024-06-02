@@ -332,10 +332,10 @@ class ShakaVideoPlayer extends VideoElementPlayer {
 
   @override
   Future<void> setTrackParameters(int? width, int? height, int? bitrate) async {
-    try {
-      shaka.Track? track = _trackDecision(width, height, bitrate);
-      if (track != null) _player.selectVariantTrack(track, true, 0);
-    } finally{}
+    // try {
+    //   shaka.Track? track = _trackDecision(width, height, bitrate);
+    //   if (track != null) _player.selectVariantTrack(track, true, 0);
+    // } finally{}
   }
 
   @override
@@ -362,7 +362,6 @@ class ShakaVideoPlayer extends VideoElementPlayer {
     } catch(e) {
       html.window.console.log(e);
     }
-    // _player.requestFullscreen();
   }
 
   @override

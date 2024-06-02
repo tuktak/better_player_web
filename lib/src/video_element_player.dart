@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:html' as html;
 import 'dart:js' as js;
+import 'dart:math';
 
 import 'package:better_player_web/better_player_web.dart';
 import 'package:better_player_web/src/video_player.dart';
@@ -92,16 +93,16 @@ abstract class VideoElementPlayer implements VideoPlayer {
       videoElement.onLoadedMetadata.listen((_) => markAsInitializedIfNeeded());
     }
 
-    videoElement.onCanPlayThrough.listen((dynamic _) {
-      setBuffering(false);
-    });
-
-    videoElement.onPlaying.listen((dynamic _) {
-      setBuffering(false);
-    });
+    // videoElement.onCanPlayThrough.listen((dynamic _) {
+    //   setBuffering(false);
+    // });
+    //
+    // videoElement.onPlaying.listen((dynamic _) {
+    //   setBuffering(false);
+    // });
 
     videoElement.onWaiting.listen((dynamic _) {
-      setBuffering(true);
+      // setBuffering(true);
       _sendBufferingRangesUpdate();
     });
 
@@ -121,43 +122,68 @@ abstract class VideoElementPlayer implements VideoPlayer {
     });
 
     videoElement.onEnded.listen((dynamic event) {
-      setBuffering(false);
-      eventController
-          .add(VideoEvent(eventType: VideoEventType.completed, key: _key));
+      // setBuffering(false);
+      // eventController
+      //     .add(VideoEvent(eventType: VideoEventType.completed, key: _key));
+      // debugPrint("ended will be paused");
+      // videoElement.pause();
+      eventController.add(VideoEvent(eventType: VideoEventType.pause, key: _key));
     });
     videoElement.addEventListener('webkitfullscreenchange', onFullscreenChanged);
     videoElement.addEventListener('webkitendfullscreen', onFullscreenChanged);
     videoElement.addEventListener('webkitbeginfullscreen', onFullscreenChanged);
     videoElement.addEventListener('fullscreenchange', onFullscreenChanged);
     videoElement.addEventListener('play', (event) {
-      if(!videoPlayed) {
+      // if(!videoPlayed) {
         videoPlayed = true;
-        eventController.add(VideoEvent(eventType: VideoEventType.play, key: _key));
-      }
+        _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
+        eventController.add(VideoEvent(
+            eventType: VideoEventType.played,
+            position: _beforePos,
+            key: _key
+        ));
+      // }
       // if(html.window.document.fullscreenElement != null) {
       // }
     });
+    videoElement.onSeeked.listen((event) {
+      _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
+      eventController.add(VideoEvent(
+          eventType: VideoEventType.seeked,
+          position: _beforePos,
+          key: _key
+      ));
+    });
+
     videoElement.addEventListener('pause', (event) {
-      if(videoPlayed) {
+      // if(videoPlayed) {
         videoPlayed =false;
         // if(html.window.document.fullscreenElement != null) {
-          eventController.add(VideoEvent(eventType: VideoEventType.pause, key: _key));
+          eventController.add(VideoEvent(eventType: VideoEventType.paused, key: _key));
         // }
-      }
+      // }
     });
-    videoElement.addEventListener('ended',(event) {
-      eventController.add(VideoEvent(eventType: VideoEventType.completed, key: _key));
-      if(videoPlayed) {
-        videoElement.pause();
+    // videoElement.addEventListener('ended',(event) {
+    //   videoPlayed=false;
+    //   videoElement.pause();
+    //   eventController.add(VideoEvent(eventType: VideoEventType.completed, key: _key));
+    // });
+    //
+    videoElement.addEventListener('playing', (event){
+      if(DateTime.now().difference(beforePlayingTime) < const Duration(milliseconds: 500)) {
+        debugPrint("${DateTime.now().toString()} - ${beforePlayingTime.toString()} = ${DateTime.now().difference(beforePlayingTime)} " );
+        return;
       }
-    });
-    videoElement.addEventListener('isPlaying', (event){
-      if(!videoPlayed) {
-        videoPlayed= true;
-        eventController.add(VideoEvent(eventType: VideoEventType.play, key: _key));
-      }
+      beforePlayingTime = DateTime.now();
+      videoPlayed= true;
+      eventController.add(VideoEvent(
+          eventType: VideoEventType.playing,
+          position: getPosition(),
+          key: _key
+      ));
     });
   }
+  DateTime beforePlayingTime = DateTime.now();
   bool videoPlayed = false;
   void onFullscreenChanged(html.Event event) {
     bool ret = js.context.callMethod('checkFullscreen', [videoElement]);
@@ -241,21 +267,36 @@ abstract class VideoElementPlayer implements VideoPlayer {
     _videoElement.playbackRate = speed;
   }
 
+  // DateTime beforeSeek = DateTime.now();
   /// Moves the playback head to a new `position`.
   ///
   /// `position` cannot be negative.
   @override
   void seekTo(Duration position) {
-    assert(!position.isNegative);
-
-    videoElement.currentTime = position.inMilliseconds.toDouble() / 1000;
+    if(position.isNegative) {
+      return;
+    }
+    var time =position.inMilliseconds.toDouble() / 1000;
+    if(time >= videoElement.duration) {
+//      videoElement.pause();
+      videoElement.currentTime=videoElement.duration;
+    } else {
+      videoElement.currentTime = time;
+    }
   }
 
+  DateTime _lastTime = DateTime.now();
+  Duration _beforePos = Duration.zero;
   /// Returns the current playback head position as a [Duration].
   @override
   Duration getPosition() {
-    _sendBufferingRangesUpdate();
-    return Duration(milliseconds: (videoElement.currentTime * 1000).round());
+    if(DateTime.now().difference(_lastTime) < const Duration(milliseconds: 300)) {
+      return _beforePos;
+    }
+    _lastTime = DateTime.now();
+    // _sendBufferingRangesUpdate();
+    _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
+    return _beforePos;
   }
 
   /// Disposes of the current [html.VideoElement].
@@ -304,26 +345,44 @@ abstract class VideoElementPlayer implements VideoPlayer {
   @protected
   @visibleForTesting
   void setBuffering(bool buffering) {
-    if (_isBuffering != buffering) {
-      _isBuffering = buffering;
+    // if (_isBuffering != buffering) {
+    //   _isBuffering = buffering;
+    //   _eventController.add(VideoEvent(
+    //       eventType: _isBuffering
+    //           ? VideoEventType.bufferingStart
+    //           : VideoEventType.bufferingEnd,
+    //       key: _key));
+    // }
+  }
+
+  double beforeStart = 0;
+  double beforeEnd = 0;
+  // Broadcasts the [html.VideoElement.buffered] status through the [events] stream.
+  void _sendBufferingRangesUpdate() {
+    var vBuffer =  _videoElement.buffered;
+    if(vBuffer.length == 1) {
+      var start = vBuffer.start(0);
+      var end = vBuffer.end(0);
+      if(start == beforeStart && end == beforeEnd) {
+        return;
+      }
+      beforeStart=start;
+      beforeEnd=end;
       _eventController.add(VideoEvent(
-          eventType: _isBuffering
-              ? VideoEventType.bufferingStart
-              : VideoEventType.bufferingEnd,
+          buffered: _toDurationRange(vBuffer),
+          eventType: VideoEventType.bufferingUpdate,
+          key: _key));
+    } else  {
+      _eventController.add(VideoEvent(
+          buffered: _toDurationRange(vBuffer),
+          eventType: VideoEventType.bufferingUpdate,
           key: _key));
     }
   }
 
-  // Broadcasts the [html.VideoElement.buffered] status through the [events] stream.
-  void _sendBufferingRangesUpdate() {
-    _eventController.add(VideoEvent(
-        buffered: _toDurationRange(_videoElement.buffered),
-        eventType: VideoEventType.bufferingUpdate,
-        key: _key));
-  }
-
   // Converts from [html.TimeRanges] to our own List<DurationRange>.
   List<DurationRange> _toDurationRange(html.TimeRanges buffered) {
+
     final List<DurationRange> durationRange = <DurationRange>[];
     for (int i = 0; i < buffered.length; i++) {
       durationRange.add(DurationRange(
