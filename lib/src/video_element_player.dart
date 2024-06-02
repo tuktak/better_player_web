@@ -136,10 +136,9 @@ abstract class VideoElementPlayer implements VideoPlayer {
     videoElement.addEventListener('play', (event) {
       // if(!videoPlayed) {
         videoPlayed = true;
-        _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
         eventController.add(VideoEvent(
             eventType: VideoEventType.played,
-            position: _beforePos,
+            position: getPosition(),
             key: _key
         ));
       // }
@@ -147,10 +146,10 @@ abstract class VideoElementPlayer implements VideoPlayer {
       // }
     });
     videoElement.onSeeked.listen((event) {
-      _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
       eventController.add(VideoEvent(
           eventType: VideoEventType.seeked,
-          position: _beforePos,
+          position: getPosition(),
+          duration: Duration(microseconds: (videoElement.duration*1000000).round()),
           key: _key
       ));
     });
@@ -203,9 +202,9 @@ abstract class VideoElementPlayer implements VideoPlayer {
   /// limitation should disappear.
   @override
   Future<void> play() {
-    if(videoElement.duration.round() == videoElement.currentTime.round()) {
-      videoElement.currentTime = 0;
-    }
+    // if(videoElement.duration.round() == videoElement.currentTime.round()) {
+    //   videoElement.currentTime = 0;
+    // }
     return videoElement.play();
     // .catchError((Object e) {
     //   // play() attempts to begin playback of the media. It returns
@@ -276,9 +275,8 @@ abstract class VideoElementPlayer implements VideoPlayer {
     if(position.isNegative) {
       return;
     }
-    var time =position.inMilliseconds.toDouble() / 1000;
-    if(time >= videoElement.duration) {
-//      videoElement.pause();
+    var time =position.inMicroseconds.toDouble() / 1000000;
+    if(time +0.5 >= videoElement.duration) {
       videoElement.currentTime=videoElement.duration;
     } else {
       videoElement.currentTime = time;
@@ -295,7 +293,10 @@ abstract class VideoElementPlayer implements VideoPlayer {
     }
     _lastTime = DateTime.now();
     // _sendBufferingRangesUpdate();
-    _beforePos = Duration(milliseconds: (videoElement.currentTime * 1000).round());
+    _beforePos = Duration(microseconds: (videoElement.currentTime * 1000000).round());
+    if(videoElement.duration - videoElement.currentTime < 0.9) {
+      _beforePos = Duration(microseconds: (videoElement.duration * 1000000).round());
+    }
     return _beforePos;
   }
 
@@ -318,7 +319,7 @@ abstract class VideoElementPlayer implements VideoPlayer {
   void _sendInitialized() {
     final Duration? duration = !_videoElement.duration.isNaN
         ? Duration(
-            milliseconds: (_videoElement.duration * 1000).round(),
+            microseconds: (_videoElement.duration * 1000000).round(),
           )
         : null;
 
@@ -386,8 +387,8 @@ abstract class VideoElementPlayer implements VideoPlayer {
     final List<DurationRange> durationRange = <DurationRange>[];
     for (int i = 0; i < buffered.length; i++) {
       durationRange.add(DurationRange(
-        Duration(milliseconds: (buffered.start(i) * 1000).round()),
-        Duration(milliseconds: (buffered.end(i) * 1000).round()),
+        Duration(microseconds: (buffered.start(i) * 1000000).round()),
+        Duration(microseconds: (buffered.end(i) * 1000000).round()),
       ));
     }
     return durationRange;
